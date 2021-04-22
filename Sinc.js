@@ -55,6 +55,7 @@ module.exports = function (http) {
                 }
             }) 
             console.log(gamesToDelete)
+            
             socket.emit('updateData', {games, gamesToDelete, version: newVersion[0].version})
         })
     })

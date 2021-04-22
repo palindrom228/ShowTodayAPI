@@ -156,6 +156,44 @@ router.post('/loadgames', authMiddleware, async(req,res)=>{
         })
     }
 })
+router.post('/getClientForGame', authMiddleware, async(req,res)=>{
+    try {
+        const {clientId} = req.body
+        const {cityId} = req.user
+        const client = await Leads.aggregate([
+            {$match: {owner: cityId}},
+            {$unwind: '$leads'},
+            {$match: 
+                {'leads._id': mongoose.Types.ObjectId(clientId)}
+            }
+        ])
+        
+        return res.status(200).json(client[0].leads)
+    } catch (error) {
+        console.log(error)
+        return res.status(400).json({
+            message: "Что-то пошло не так попробуйте чуть позже"
+        })
+    }
+})
+router.post('/getGame', authMiddleware, async(req, res)=>{
+    try {
+        const {id} = req.body
+        const {cityId} = req.user
+        const game = await Games.aggregate([
+            {$match: {owner: cityId}},
+            {$unwind: '$games'},
+            {$match: 
+                {'games._id': mongoose.Types.ObjectId(id)}
+            }
+        ])
+        return res.status(200).json(game[0].games)
+    } catch (error) {
+        return res.status(400).json({
+            message: "Что-то пошло не так попробуйте чуть позже"
+        })
+    }
+})
 return router
 }
 

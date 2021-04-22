@@ -16,6 +16,6 @@ const schema = new Schema({
     col: {type: Number, required: true},
     age: {type: Boolean, required: true},
     version: {type: Number, required: true},
-    removed: {type: Boolean }
+    removed: {type: Number, required: true }
 })
 module.exports = model('Game', schema)
