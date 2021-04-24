@@ -120,6 +120,7 @@ router.post('/creategame', authMiddleware, async(req,res)=>{
         }}, $inc: {version: 1} 
     }
         );
+        io.to(req.user.cityId).emit('addedGame', {message: "добавлена игра"})
         return res.status(201).json(game._id)
         
     } catch (error) {
