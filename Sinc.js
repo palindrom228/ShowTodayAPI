@@ -1,10 +1,10 @@
 const jwt = require('jsonwebtoken')
 const mongoose = require('mongoose')
 const config = require('config')
-const User = require('./models/User')
-const Leads = require('./models/Leads')
+const GamesToCity = require('./models/GamesToCity')
+const LeadsToCity = require('./models/LeadsToCity')
 const Room = require('./models/Room')
-const Games = require('./models/Games')
+const Game = require('./models/Game')
 
 
 module.exports = function (http) {
@@ -33,30 +33,22 @@ module.exports = function (http) {
             let { userId, cityId } = socket.handshake.auth.token
             await Room.updateOne({owner: cityId}, {$pull: {clients: {conId: socket.id}}})
         })
-        socket.on('sync', async( version) => {
+        socket.on('sync', async( version, studioId) => {
             let { userId, cityId } = socket.handshake.auth.token
-            const data = await Games.aggregate(
-                [{$match: {owner: cityId}},
-                {$unwind: '$games'},
-                {$match: {'games.version': {$gt: version}}}]
-            )
-            const newVersion = await Games.aggregate([
-                {$match: {owner: cityId}},
-                {$project: {'version': '$version'}}
-            ]
-            )
+            
+            const newVersion = await GamesToCity.findById(studioId, {_id: 1, name: 1,version: 1})
+            const data = await Game.find({owner: newVersion._id, version: {$gt: version}})
+            console.log(newVersion)
             let gamesToDelete = []
             let games = []
             data.map((item)=>{
-                if(!item.games.hasOwnProperty('removed')){
-                    games.push(item.games)
+                if(item.removed===false){
+                    games.push(item)
                 }else{
-                    gamesToDelete.push(item.games)
+                    gamesToDelete.push(item)
                 }
             }) 
-            console.log(gamesToDelete)
-            
-            socket.emit('updateData', {games, gamesToDelete, version: newVersion[0].version})
+            socket.emit('updateData', {games, gamesToDelete, version: newVersion.version, studioId, studio: newVersion})
         })
     })
 

@@ -1,42 +1,29 @@
 const {Router} = require('express')
 const User = require('../models/User')
-const Leads = require('../models/Leads')
-const Games = require('../models/Games')
-const City = require('../models/City')
-const bcrypt = require('bcryptjs')
-const jwt = require('jsonwebtoken')
+const LeadsToCity = require('../models/LeadsToCity')
+const GamesToCity = require('../models/GamesToCity')
 const {check, validationResult} = require('express-validator')
 const mongoose = require('mongoose')
-const config = require('config')
 const authMiddleware = require('../middleware/auth.middleware')
 const Lead = require('../models/Lead')
 const router = Router()
 const moment = require('moment')
 const Game = require('../models/Game')
-const { findOne } = require('../models/Games')
+const Commets = require('../models/Commets')
+const { route } = require('./auth.router')
 
 function init(io){
 router.post('/getclient',authMiddleware,async(req,res)=>{
     try {
         const phoneFind = req.body.phone
         const reg = new RegExp(phoneFind)
-        const candidates = await Leads.aggregate(
-            [{$match: {owner: req.user.cityId}},
-            {$unwind: '$leads'},
-            {$match: {
-                $or: [
-                    {'leads.phone': reg}
-                ]
-            }}]
-        )
+        const candidatesBase = await LeadsToCity.findOne({owner: req.user.cityId},{_id: 1})
+        const candidates = await Lead.find({owner: candidatesBase._id, phone: {$regex: reg, $options: 'i'}})
+        console.log(candidates)
     if (!candidates){
         return res.status(404).json({message: "Нет таких"})
     }
-    const arr = []
-    candidates.map((lead)=>{
-        arr.push(lead.leads)
-    })
-    return res.status(200).json(arr)
+    return res.status(200).json(candidates)
     } catch (error) {
         console.log(error)
         return res.status(401).json({message: 'SM'})
@@ -55,18 +42,16 @@ check('clientName', 'Минимальная длина имени 2 символ
                 message: "Неккоректные данные при создании клиента"
             })
         }
-        const {clientName, phone,date} = req.body
-    const candidate = await Leads.aggregate(
-        [{$match: {owner: req.user.cityId}},
-        {$unwind: '$leads'},
-        {$match: {'leads.phone': phone}}]
-    )
-    if(candidate.length > 0){
-        return res.status(404).json({message: "Данный лид уже создан"})
-    }
-    const lead = await new Lead({phone, name: clientName, date})
-    await Leads.updateOne({owner: req.user.cityId}, {$push: {leads: lead}})
-    return res.status(201).json(lead)
+        const {clientName, phone} = req.body
+        const candidatesBase = await LeadsToCity.find({owner: req.user.cityId},{_id: 1})
+        const candidate = await Lead.find({owner: candidatesBase._id, phone: phone})
+        if(candidate.length){
+            return res.status(404).json({message: "Данный лид уже создан"})
+        }
+        const lead = await new Lead({phone, name: clientName, date: moment().valueOf(), owner: candidatesBase[0]._id})
+        await lead.save()
+        await LeadsToCity.updateOne({owner: req.user.cityId}, {$push: {leads: lead._id}})
+        return res.status(201).json(lead)
     } catch (error) {
         console.log(error)
         return res.status(501).json({message: 'Что то пошло не так'})
@@ -74,8 +59,9 @@ check('clientName', 'Минимальная длина имени 2 символ
 })
 router.post('/creategame', authMiddleware, async(req,res)=>{
     try {
-        const {date, duration, type, address, col, summ, prepay, evening, client, age} = req.body
-        if(type === 2 && addres === ''){
+        const {date, duration, type, address, col, summ, prepay, evening, client, age, inventory, gamesToCityId} = req.body
+        console.log(req.body)
+        if(type === 2 && address === ''){
             return res.status(400).json({
                 message: "Если игра выездная то должен присутствовать Адрес"
             })
@@ -107,22 +93,34 @@ router.post('/creategame', authMiddleware, async(req,res)=>{
                 message: "Выберите пожалуйста клиента и попробуйте еще раз"
             })
         }
-        const version = await Games.aggregate([
-            {$match: {owner: req.user.cityId}},
-            {$project: {'version': '$version'}}
-        ]
-        )
-        console.log(version)
-        const game = await new Game({lead: client, date: date, dateOfCreation: moment().valueOf(), col, summ, prepay, evening, duration,workers, type, address: address,age,version: version[0].version + 1 })
-        await Games.updateOne({owner: req.user.cityId}, {$push: {games: {
-            $each: [game],
-            $sort: { date: 1} 
-        }}, $inc: {version: 1} 
+        const gamesBase = await GamesToCity.findById(gamesToCityId,{_id: 1, version: 1})
+        const game = await new Game({
+            lead: client, 
+            date: date, 
+            dateOfCreation: moment().valueOf(), 
+            col, 
+            summ, 
+            prepay, 
+            evening, 
+            duration,
+            workers, 
+            type, 
+            address: address,
+            age,
+            version: gamesBase.version + 1 ,
+            inventory,
+            status: 0,
+            removed: false,
+            owner: gamesBase._id,
+            creator: req.user.userId,
+            comments: []
+        })
+        await game.save()
+        await GamesToCity.findByIdAndUpdate(gamesToCityId, {$push: {games: game._id}, $inc: {version: 1} 
     }
         );
-        io.to(req.user.cityId).emit('addedGame', {message: "добавлена игра"})
+        io.to(req.user.cityId).emit('addedGame', {message: `добавлена игра ${moment(date).format('D/M/H HH:mm') + ' ' + gamesBase.name}`})
         return res.status(201).json(game._id)
-        
     } catch (error) {
         console.log(error)
         return res.status(400).json({
@@ -136,20 +134,9 @@ router.post('/loadgames', authMiddleware, async(req,res)=>{
         const min = moment(month).subtract(1,'week').valueOf()
         const max = moment(month).add(1,'M').add(1,'W').valueOf()
         const {cityId} = req.user
-        const games = await Games.aggregate(
-            [{$match: {owner: cityId}},
-            {$unwind: '$games'},
-            {$match: {
-                $or: [
-                    {'games.date': {$lte: max, $gte: min}}
-                ]
-            }}]
-        )
-        const arr = []
-        games.map((game)=>{
-        arr.push(game.games)
-        })
-        return res.status(200).json(arr)
+        const gamesBase = await GamesToCity.findOne({owner: req.user.cityId},{_id: 1, version: 1})
+        const games = await Game.find({owner: gamesBase._id, removed: false, date: {$lte: max, $gte: min}})
+        return res.status(200).json(games)
     } catch (error) {
         console.log(error)
         return res.status(400).json({
@@ -160,16 +147,8 @@ router.post('/loadgames', authMiddleware, async(req,res)=>{
 router.post('/getClientForGame', authMiddleware, async(req,res)=>{
     try {
         const {clientId} = req.body
-        const {cityId} = req.user
-        const client = await Leads.aggregate([
-            {$match: {owner: cityId}},
-            {$unwind: '$leads'},
-            {$match: 
-                {'leads._id': mongoose.Types.ObjectId(clientId)}
-            }
-        ])
-        
-        return res.status(200).json(client[0].leads)
+        const client = await Lead.findById(clientId)
+        return res.status(200).json(client)
     } catch (error) {
         console.log(error)
         return res.status(400).json({
@@ -180,16 +159,143 @@ router.post('/getClientForGame', authMiddleware, async(req,res)=>{
 router.post('/getGame', authMiddleware, async(req, res)=>{
     try {
         const {id} = req.body
-        const {cityId} = req.user
-        const game = await Games.aggregate([
-            {$match: {owner: cityId}},
-            {$unwind: '$games'},
-            {$match: 
-                {'games._id': mongoose.Types.ObjectId(id)}
-            }
-        ])
-        return res.status(200).json(game[0].games)
+        const game = await Game.findById(id)
+        if(game.removed){
+            return res.status(400).json({
+                message: "Игра удалена"
+            })
+        }
+        return res.status(200).json(game)
     } catch (error) {
+        return res.status(400).json({
+            message: "Что-то пошло не так попробуйте чуть позже"
+        })
+    }
+})
+router.post('/deleteGame', authMiddleware, async(req,res) => {
+    try {
+        const {id} = req.body
+        const game = await Game.findById(id, {version: 1, _id: 1,owner: 1})
+        const gamesToCity = await GamesToCity.findById(game.owner)
+        await Game.findByIdAndUpdate(id, {$set: {removed: true}, version: gamesToCity.version + 1})
+        await GamesToCity.findByIdAndUpdate(gamesToCity._id, {version: gamesToCity.version + 1})
+        io.to(req.user.cityId).emit('addedGame', {message: `Удалена игра ${moment(game.date).format('D/M/Y HH:mm')}`})
+        return res.status(200).json({message: 'ok'})
+    }
+     catch (error) {
+        return res.status(400).json({
+            message: "Что-то пошло не так попробуйте чуть позже"
+        })
+    }
+})
+router.post('/createStudio', authMiddleware, async(req, res) => {
+    try {   
+        const name = req.body.name.trim()
+        const {cityId} = req.user
+        const candidate = await GamesToCity.find({owner: cityId, name: name})
+        console.log(candidate)
+        if(candidate.length){
+            return res.status(400).json({
+                message: 'Данное имя уже используется для другой студии'
+            })
+        }
+        if(name.length < 1) {
+            return res.status(400).json({
+                message: 'Введите Имя'
+            })
+        }
+        const newStudio = await new GamesToCity({
+            owner: cityId,
+            games: [],
+            version: 0,
+            name: name,
+            type: 'usual'
+        })
+        await newStudio.save()
+        io.to(cityId).emit('newStudio', {message: `Созданна новая студия: ${newStudio.name}`, studio: newStudio})
+        return res.status(201).json(newStudio._id)
+
+    } catch (error) {
+        return res.status(400).json({
+            message: "Что-то пошло не так попробуйте чуть позже"
+        })
+    }
+})
+router.post('/deleteStudio', authMiddleware, async(req,res) => {
+    try {
+        const {id} = req.body
+        const studioToDelete = await GamesToCity.findById(id)
+        const {userId} = req.user
+        const user = await User.findById(userId)
+        if(user.type > 2){
+            return res.status(400).json({
+                message: "У вас нет доступа для удаления календаря студии"
+            })
+        }
+        if(studioToDelete.type === 'main'){
+            return res.status(400).json({
+                message: "Нельзя удалить основную студию"
+            })
+        }
+        await GamesToCity.findByIdAndDelete(id)
+        io.to(req.user.cityId).emit('studioDeleted', {message: `Удалена студия: ${studioToDelete.name}`, studioToDelete: studioToDelete})
+        return res.status(200).json({
+            message: 'Игра удалена'
+        })
+    } catch (error) {
+        console.log(error)
+        return res.status(400).json({
+            message: "Что-то пошло не так попробуйте чуть позже"
+        })
+    }
+})
+router.post('/createPost', authMiddleware, async(req,res)=>{
+    try{
+        const {date,type,message, gameId} = req.body
+        const {userId,cityId} = req.user
+        if(!message || !type || !gameId || !date) {
+            console.log(req.body)
+            return res.status(400).json({
+                message: "Неправильно заполнены данные"
+            })
+        }
+        const comment = await new Commets({
+            createDate: moment().valueOf(),
+            date: Number(date),
+            message,
+            owner: gameId,
+            status: 0,
+            type,
+            creator: userId
+        })
+        await comment.save()
+        const game = await Game.findByIdAndUpdate(gameId,{$inc: {version: 1}, $push: {comments: comment._id}})
+        await GamesToCity.findByIdAndUpdate(game.owner, {$inc: {version: 1}})
+        io.to(cityId).emit(
+            'addedGame', 
+            {
+                message: `Добавлено событие к игре ${moment(game.date).format('D/M/Y HH:mm')}`, 
+            }
+            )
+        return res.status(201).json({
+            message: "ok",
+            comment: comment
+        })
+    }
+    catch (error){
+        console.log(error)
+        return res.status(400).json({
+            message: "Что-то пошло не так попробуйте чуть позже"
+        })
+    }
+})
+router.post('/getComments', authMiddleware, async(req, res) => {
+    try {
+        const {id} = req.body
+        const data = await Commets.find({owner: id}).sort({date: 1})
+        return res.status(200).json(data)
+    } catch (error) {
+        console.log(error)
         return res.status(400).json({
             message: "Что-то пошло не так попробуйте чуть позже"
         })

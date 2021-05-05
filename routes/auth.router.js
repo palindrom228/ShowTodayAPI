@@ -1,7 +1,7 @@
 const {Router} = require('express')
 const User = require('../models/User')
-const Leads = require('../models/Leads')
-const Games = require('../models/Games')
+const LeadsToCity = require('../models/LeadsToCity')
+const GamesToCity = require('../models/GamesToCity')
 const City = require('../models/City')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
@@ -22,7 +22,6 @@ router.post('/login', async (req, res) => {
                 message: 'Данный пользователь не найден'
             })
         }
-        const hashedPassword = await bcrypt.hash(password, 12)
         const isMatch = await bcrypt.compare(password, candidate.password)
         if (!isMatch) {
             return res.status(400).json({ message: 'Неверный пароль' })
@@ -34,9 +33,11 @@ router.post('/login', async (req, res) => {
             config.get('jwtSecret'),
             { expiresIn: isReactNative? '7d':'12h' }
         )
-        res.status(200).json({ token, type: candidate.type, city: candidate.city, name: candidate.name })
+        const studios = await GamesToCity.find({owner: candidate.cityId})
+        return res.status(200).json({ token, type: candidate.type, city: candidate.city, name: candidate.name, studios})
     } catch (error) {
-        res.status(200).json({message: 'что-то пошло не так'})
+        console.log(error)
+        return res.status(200).json({message: 'что-то пошло не так'})
     }
 })
 router.post('/createcity',
@@ -52,7 +53,7 @@ check('city', 'Минимальная длина города 2 символа')
                 message: "Неккоректные данные при регистрации"
             })
         }
-        const {email, password, type, city,name} = req.body
+        const {email, password, type, city,name, nameOfCity} = req.body
         const candidate = await User.findOne({email})
         if (candidate) {
             return (res.status(400).json({
@@ -76,15 +77,15 @@ check('city', 'Минимальная длина города 2 символа')
                 owner: user._id
             })
             await newcity.save()   
-            const games = new Games({owner: newcity._id, version: 0})
-            const leads = new Leads({owner: newcity._id})
+            const games = new GamesToCity({owner: newcity._id, version: 0, name: nameOfCity, type: 'main'})
+            const leads = new LeadsToCity({owner: newcity._id})
             const rooms = new Room({owner: newcity._id})
             await rooms.save()
             await games.save()
             await leads.save()
             await User.findOneAndUpdate({_id: user._id}, {$set: {cityId: newcity._id}})
+            await City.findByIdAndUpdate(newcity._id, {studios: [games._id]})
             return res.status(201).json({message: 'Пользователь создан'})
-            
         }
         return res.status(201).json({message: 'Пользователь создан'})
         
@@ -109,7 +110,8 @@ router.post('/reconnect', authMiddleware, async(req,res)=>{
             config.get('jwtSecret'),
             { expiresIn: isReactNative? '7d':'12h' }
         )
-        return res.status(200).json({ token: token, type: data.type, city: data.city, name: data.name })
+        const studios = await GamesToCity.find({owner: data.cityId})
+        return res.status(200).json({ token: token, type: data.type, city: data.city, name: data.name, studios })
     } catch (error) {
         console.log(error)
         return res.status(400).json({message:'Что-то пошло не так'})

@@ -7,7 +7,7 @@ const schema = new Schema({
     city: {type: String, required: true},
     salary: {type: Object},
     name: {type: String, required: true},
-    cityId: {type: String},
+    cityId: {type: Types.ObjectId, ref: 'City'},
     version: {type: Number}
 })
 module.exports = model('User', schema)

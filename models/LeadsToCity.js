@@ -5,4 +5,4 @@ const schema = new Schema({
     owner: {type: String, required: true},
 })
 
-module.exports = model('Leads', schema)
+module.exports = model('LeadsToCity', schema)
