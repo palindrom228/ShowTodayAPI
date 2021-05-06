@@ -6,6 +6,8 @@ const http = require('http').Server(app)
 app.use(express.json({extended: true}))
 app.use('/api/auth', require('./routes/auth.router'))
 const PORT = config.get('PORT') || 5000
+const fileUpload = require('express-fileupload')
+const multer  = require('multer');
 
 const start = async() => {
     try {
@@ -23,5 +25,7 @@ const start = async() => {
 }
 const io = require('./Sinc')(http)
 const games = require('./routes/games.router')(io)
+
 app.use('/api/games', games)
+app.use('/api/images', require('./routes/images.router'))
 start()
