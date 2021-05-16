@@ -7,7 +7,8 @@ const schema = Schema({
     type: {type: String, required: true},
     status: {type: Number, required: true},
     owner: {type: Types.ObjectId, required: true, ref: 'Game'},
-    creator: {type: Types.ObjectId, required: true, ref: 'User'}
+    creator: {type: Types.ObjectId, required: true, ref: 'User'},
+    GamesBase: {type: Types.ObjectId, required: true, ref: 'GamesToCity'}
 })
-schema.index({type: 1, date: 1})
+schema.index({type: 1, date: 1, status: 1})
 module.exports = model('Comments',schema)

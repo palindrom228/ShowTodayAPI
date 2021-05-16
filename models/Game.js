@@ -6,7 +6,7 @@ const schema = new Schema({
     date: {type: Number, required: true},
     dateOfCreation: {type: String, required: true},
     duration: {type: Types.ObjectId, required: true},
-    comments: [{type: Object, ref: 'Comment'}],
+    comments: [{type: Types.ObjectId, ref: 'Comment'}],
     creator: {type: String, required: true},
     type: {type: Number, required: true},
     address: {type: String, required: false},

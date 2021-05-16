@@ -259,6 +259,7 @@ router.post('/createPost', authMiddleware, async(req,res)=>{
                 message: "Неправильно заполнены данные"
             })
         }
+        const gamesBase = await Game.findById(gameId,{owner: 1})
         const comment = await new Commets({
             createDate: moment().valueOf(),
             date: Number(date),
@@ -266,7 +267,8 @@ router.post('/createPost', authMiddleware, async(req,res)=>{
             owner: gameId,
             status: 0,
             type,
-            creator: userId
+            creator: userId,
+            GamesBase: gamesBase.owner
         })
         await comment.save()
         const game = await Game.findByIdAndUpdate(gameId,{$inc: {version: 1}, $push: {comments: comment._id}})
@@ -293,9 +295,61 @@ router.post('/getComments', authMiddleware, async(req, res) => {
     try {
         const {id} = req.body
         const data = await Commets.find({owner: id}).sort({date: 1})
+        
         return res.status(200).json(data)
     } catch (error) {
         console.log(error)
+        return res.status(400).json({
+            message: "Что-то пошло не так попробуйте чуть позже"
+        })
+    }
+})
+const types = {
+    date: 'Дата',
+    lead: 'Заказчик',
+    workers: 'Работники',
+    status: 'Статус',
+    addres: 'Адрес',
+    summ: 'Сумма',
+    prepay: 'Предоплата',
+    age: 'Возраст',
+    duration: 'Продолжительность',
+    evening: 'Вечер',
+    inventory: 'Инвентарь',
+    col: 'Количество',
+    type: 'Локация'
+}
+const updateVersion = async(id,ownerId) => {
+    await Game.findByIdAndUpdate(id, {[type]: value,$inc: {version: 1}})
+    await GamesToCity.findByIdAndUpdate(ownerId, {$inc: {version: 1}})
+}
+router.post('/updatePropertyOfGame', authMiddleware, async(req,res) => {
+    try {
+        const {id, type, value} = req.body
+        const {cityId} = req.user
+        const oldGame = await Game.findById(id, {[type]: 1})
+        updateVersion(id,oldGame.owner)
+        const messageCreate = (type) => {
+            switch(type){
+                case 'date':
+                    return `Внесены изминения у игры ${moment(oldGame.date).format('D/M/Y HH:mm')}.Изменено свойство ${types[type]} с ${moment(oldGame[type]).format('D/M/Y HH:mm')} на ${moment(value).format('D/M/Y HH:mm')} `;
+                case 'type':
+                    return `Внесены изминения у игры ${moment(oldGame.date).format('D/M/Y HH:mm')}.Изменено свойство ${types[type]} с ${oldGame[type]===0?'Студия':'Выезд'} на ${value===0?'Студия':'Выезд'} `;
+                default :
+                    return `Внесены изминения у игры ${moment(oldGame.date).format('D/M/Y HH:mm')}.Изменено свойство ${types[type]} с ${oldGame[type]} на ${value}`;
+            }
+               
+        }
+        io.to(cityId).emit(
+            'changedGame', 
+            {
+                message: messageCreate(type), 
+            }
+            )
+        return res.status(200).json({
+            ok: true
+        })
+    } catch (error) {
         return res.status(400).json({
             message: "Что-то пошло не так попробуйте чуть позже"
         })
