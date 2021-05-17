@@ -319,16 +319,13 @@ const types = {
     col: 'Количество',
     type: 'Локация'
 }
-const updateVersion = async(id,ownerId) => {
-    await Game.findByIdAndUpdate(id, {[type]: value,$inc: {version: 1}})
-    await GamesToCity.findByIdAndUpdate(ownerId, {$inc: {version: 1}})
-}
 router.post('/updatePropertyOfGame', authMiddleware, async(req,res) => {
     try {
         const {id, type, value} = req.body
         const {cityId} = req.user
         const oldGame = await Game.findById(id, {[type]: 1})
-        updateVersion(id,oldGame.owner)
+        await Game.findByIdAndUpdate(id, {[type]: value,$inc: {version: 1}})
+    await GamesToCity.findByIdAndUpdate(oldGame.owner, {$inc: {version: 1}})
         const messageCreate = (type) => {
             switch(type){
                 case 'date':
