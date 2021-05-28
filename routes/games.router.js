@@ -309,7 +309,7 @@ const types = {
     lead: 'Заказчик',
     workers: 'Работники',
     status: 'Статус',
-    addres: 'Адрес',
+    address: 'Адрес',
     summ: 'Сумма',
     prepay: 'Предоплата',
     age: 'Возраст',
@@ -324,6 +324,7 @@ router.post('/updatePropertyOfGame', authMiddleware, async(req,res) => {
         const {id, type, value} = req.body
         const {cityId} = req.user
         const oldGame = await Game.findById(id, {[type]: 1})
+        console.log(req.body)
         await Game.findByIdAndUpdate(id, {[type]: value,$inc: {version: 1}})
     await GamesToCity.findByIdAndUpdate(oldGame.owner, {$inc: {version: 1}})
         const messageCreate = (type) => {

@@ -5,7 +5,7 @@ const schema = new Schema({
     workers: {type: Object, required: true },
     date: {type: Number, required: true},
     dateOfCreation: {type: String, required: true},
-    duration: {type: Types.ObjectId, required: true},
+    duration: {type: Number, required: true},
     comments: [{type: Types.ObjectId, ref: 'Comment'}],
     creator: {type: String, required: true},
     type: {type: Number, required: true},
