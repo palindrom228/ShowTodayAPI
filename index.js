@@ -14,7 +14,7 @@ const start = async() => {
             useNewUrlParser: true,
             useUnifiedTopology: true,
             useCreateIndex: true,
-            useFindAndModify: true
+            useFindAndModify: false
         })
         http.listen(PORT, ()=>console.log('СТАРТАНУЛИ НА ПОРТЕ:',PORT))
     } catch (e) {

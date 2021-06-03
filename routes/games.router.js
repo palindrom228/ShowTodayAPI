@@ -319,25 +319,29 @@ const types = {
     col: 'Количество',
     type: 'Локация'
 }
+
 router.post('/updatePropertyOfGame', authMiddleware, async(req,res) => {
     try {
         const {id, type, value} = req.body
-        const {cityId} = req.user
+        const {cityId,userId} = req.user
         const oldGame = await Game.findById(id, {[type]: 1})
-        console.log(req.body)
+        const {name} = await User.findById(userId, {name: 1})
+        console.log(name)
         await Game.findByIdAndUpdate(id, {[type]: value,$inc: {version: 1}})
     await GamesToCity.findByIdAndUpdate(oldGame.owner, {$inc: {version: 1}})
-        const messageCreate = (type) => {
-            switch(type){
-                case 'date':
-                    return `Внесены изминения у игры ${moment(oldGame.date).format('D/M/Y HH:mm')}.Изменено свойство ${types[type]} с ${moment(oldGame[type]).format('D/M/Y HH:mm')} на ${moment(value).format('D/M/Y HH:mm')} `;
-                case 'type':
-                    return `Внесены изминения у игры ${moment(oldGame.date).format('D/M/Y HH:mm')}.Изменено свойство ${types[type]} с ${oldGame[type]===0?'Студия':'Выезд'} на ${value===0?'Студия':'Выезд'} `;
-                default :
-                    return `Внесены изминения у игры ${moment(oldGame.date).format('D/M/Y HH:mm')}.Изменено свойство ${types[type]} с ${oldGame[type]} на ${value}`;
-            }
-               
+    const messageCreate = (type) => {
+        switch(type){
+            case 'date':
+                return `Внесены изминения у игры ${moment(oldGame.date).format('D/M/Y HH:mm')}.\nИзменено свойство ${types[type]} с ${moment(oldGame[type]).format('D/M/Y HH:mm')} на ${moment(value).format('D/M/Y HH:mm')} \nИзминения внес: ${name}`;
+            case 'type':
+                return `Внесены изминения у игры ${moment(oldGame.date).format('D/M/Y HH:mm')}.\nИзменено свойство ${types[type]} с ${oldGame[type]===0?'Студия':'Выезд'} на ${value===0?'Студия':'Выезд'}\nИзминения внес: ${name}`;
+            case 'client':
+                return `Изминен клиент `
+            default :
+                return `Внесены изминения у игры ${moment(oldGame.date).format('D/M/Y HH:mm')}.\nИзменено свойство ${types[type]} с ${oldGame[type]} на ${value}\nИзминения внес: ${name}`;
         }
+           
+    }
         io.to(cityId).emit(
             'changedGame', 
             {
@@ -353,7 +357,31 @@ router.post('/updatePropertyOfGame', authMiddleware, async(req,res) => {
         })
     }
 })
+router.post('/updateClientData', authMiddleware, async(req,res)=>{
+    try {
+        const {name, phone, id} = req.body
+        const {cityId, userId} = req.user
+        const oldClient = await Lead.findById(id)
+        console.log(oldClient)
+        await Lead.findByIdAndUpdate(id,{name,phone})
+        io.to(cityId).emit(
+            'changedGame', 
+            {
+                message: `Изминен клиент \nИмя: ${oldClient.name}\nНомер: ${oldClient.phone}\nНа \nИмя: ${name}\nНомер: ${phone}`, 
+            }
+            )
+        return res.status(200).json({
+            ok: true
+        })
+    } catch (error) {
+        console.log(error)
+        return res.status(400).json({
+            message: "Что-то пошло не так попробуйте чуть позже"
+        })
+    }
+})
 return router
 }
+
 
 module.exports = init
