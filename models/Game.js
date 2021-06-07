@@ -1,4 +1,5 @@
 const {Schema, model, Types} = require('mongoose')
+const Deal = require('./Deal')
 
 const schema = new Schema({
     lead: {type: Types.ObjectId, ref: 'Lead', required: true},
@@ -19,7 +20,8 @@ const schema = new Schema({
     removed: {type: Boolean, required: true },
     inventory: {type: Object, required: true},
     status: {type: Number, required: true},
-    owner: {type: Types.ObjectId, ref: 'GamesToCity', required: true}
+    owner: {type: Types.ObjectId, ref: 'GamesToCity', required: true},
+    deals: [{type: Types.ObjectId, ref: 'Deal', required: true}]
 })
 schema.index({date: 1, removed: 1})
 module.exports = model('Game', schema)

@@ -113,7 +113,8 @@ router.post('/creategame', authMiddleware, async(req,res)=>{
             removed: false,
             owner: gamesBase._id,
             creator: req.user.userId,
-            comments: []
+            comments: [],
+            deals: []
         })
         await game.save()
         await GamesToCity.findByIdAndUpdate(gamesToCityId, {$push: {games: game._id}, $inc: {version: 1} 
@@ -165,8 +166,12 @@ router.post('/getGame', authMiddleware, async(req, res)=>{
                 message: "Игра удалена"
             })
         }
+        const comments= await Commets.find({owner: game._id})
+        const client = await Lead.findOne({owner: game._id})
+        
         return res.status(200).json(game)
     } catch (error) {
+        console.log(error)
         return res.status(400).json({
             message: "Что-то пошло не так попробуйте чуть позже"
         })
@@ -291,19 +296,6 @@ router.post('/createPost', authMiddleware, async(req,res)=>{
         })
     }
 })
-router.post('/getComments', authMiddleware, async(req, res) => {
-    try {
-        const {id} = req.body
-        const data = await Commets.find({owner: id}).sort({date: 1})
-        
-        return res.status(200).json(data)
-    } catch (error) {
-        console.log(error)
-        return res.status(400).json({
-            message: "Что-то пошло не так попробуйте чуть позже"
-        })
-    }
-})
 const types = {
     date: 'Дата',
     lead: 'Заказчик',
@@ -380,6 +372,7 @@ router.post('/updateClientData', authMiddleware, async(req,res)=>{
         })
     }
 })
+router.post('/createDeal')
 return router
 }
 
