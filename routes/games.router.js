@@ -11,6 +11,7 @@ const moment = require('moment')
 const Game = require('../models/Game')
 const Commets = require('../models/Commets')
 const { route } = require('./auth.router')
+const Deal = require('../models/Deal')
 
 function init(io){
 router.post('/getclient',authMiddleware,async(req,res)=>{
@@ -167,9 +168,29 @@ router.post('/getGame', authMiddleware, async(req, res)=>{
             })
         }
         const comments= await Commets.find({owner: game._id})
-        const client = await Lead.findOne({owner: game._id})
-        
-        return res.status(200).json(game)
+        const client = await Lead.findById(game.lead)
+        const creator = await User.findById(game.creator)
+        const deals = await Deal.find({owner: game._id})
+        return res.status(200).json({
+            comments, 
+            client, 
+            deals, 
+            _id: game._id, 
+            workers: game.workers,
+            date: game.date,
+            dateOfCreation: game.dateOfCreation,
+            duration: game.duration,
+            creator: creator.name,
+            type: game.type,
+            address: game.address,
+            summ: game.summ,
+            prepay: game.prepay,
+            evening: game.evening,
+            col: game.col,
+            age: game.age,
+            version: game.version,
+            status: game.status,
+        })
     } catch (error) {
         console.log(error)
         return res.status(400).json({
