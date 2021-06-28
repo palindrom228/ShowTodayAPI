@@ -60,7 +60,7 @@ check('clientName', 'Минимальная длина имени 2 символ
 })
 router.post('/creategame', authMiddleware, async(req,res)=>{
     try {
-        const {date, duration, type, address, col, summ, prepay, evening, client, age, inventory, gamesToCityId} = req.body
+        const {date, duration, type, address, col, summ, prepay, evening, client, age, inventory, gamesToCityId,name} = req.body
         console.log(req.body)
         if(type === 2 && address === ''){
             return res.status(400).json({
@@ -115,7 +115,8 @@ router.post('/creategame', authMiddleware, async(req,res)=>{
             owner: gamesBase._id,
             creator: req.user.userId,
             comments: [],
-            deals: []
+            deals: [],
+            name: !name ? '':name
         })
         await game.save()
         await GamesToCity.findByIdAndUpdate(gamesToCityId, {$push: {games: game._id}, $inc: {version: 1} 

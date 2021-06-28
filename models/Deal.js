@@ -9,7 +9,9 @@ const schema = Schema({
     owner: {type: Types.ObjectId, required: true},
     creator: {type: Types.ObjectId, required: true, ref: 'User'},
     GamesBase: {type: Types.ObjectId, required: true, ref: 'GamesToCity'},
-    comments: [{type: Object, required: true}]
+    comments: [{type: Object, required: true}],
+    priority: {type: Number, required: true},
+    responsible: {type: Types.ObjectId, required: true, ref: 'User'},
 })
 schema.index({type: 1, date: 1, status: 1})
 module.exports = model('Deal',schema)

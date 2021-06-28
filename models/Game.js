@@ -21,7 +21,8 @@ const schema = new Schema({
     inventory: {type: Object, required: true},
     status: {type: Number, required: true},
     owner: {type: Types.ObjectId, ref: 'GamesToCity', required: true},
-    deals: [{type: Types.ObjectId, ref: 'Deal', required: true}]
+    deals: [{type: Types.ObjectId, ref: 'Deal', required: true}],
+    name: {type: String, required: true}
 })
 schema.index({date: 1, removed: 1})
 module.exports = model('Game', schema)
